@@ -36,3 +36,19 @@ def denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: i
     pbar.close()
 
     return trim_im(x, 2*p_sz) if pad else x
+
+
+def decorrupt(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: int=10, beta_sched: Union[float, Callable]=100.,
+            n_grids: int=16, resample_grids: bool=False, verbose: bool=True, low_mem: bool=False, pad: bool=True):
+    beta_sched = _callable_beta(beta_sched)
+    if pad: im = pad_im(im, 2*p_sz)
+    dev = im.device
+    grids = tp.ones(n_grids, *im.shape, device=dev)*im[None, ...]
+    x = im.clone()
+
+    x0, y0 = _choose_grids(p_sz, n_grids)
+
+    pbar = tqdm(range(its), disable=not verbose)
+    pbar.close()
+
+    return trim_im(x, 2*p_sz) if pad else x
