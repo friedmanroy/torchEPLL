@@ -133,5 +133,6 @@ data/
 trained/
 experiments/
 figures/
+test.py
 *.lyx
 *.pdf

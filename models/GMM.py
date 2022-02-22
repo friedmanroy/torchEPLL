@@ -35,9 +35,9 @@ class GMM(nn.Module):
         self.S = nn.Parameter(Sigma if Sigma is not None else tp.zeros(1), requires_grad=False)
         if Sigma is None: self.L = nn.Parameter(tp.zeros(1), requires_grad=False)
         else:
-            try: self.L = nn.Parameter(tp.cholesky(Sigma), requires_grad=False)
+            try: self.L = nn.Parameter(tp.linalg.cholesky(Sigma), requires_grad=False)
             except RuntimeError:
-                self.L = nn.Parameter(tp.cholesky(Sigma+1e-6*tp.eye(Sigma.shape[-1], device=self.mu.device)[None, ...]),
+                self.L = nn.Parameter(tp.linalg.cholesky(Sigma+1e-6*tp.eye(Sigma.shape[-1], device=self.mu.device)[None, ...]),
                                       requires_grad=False)
 
         # cholesky decomposition of covariances
@@ -45,6 +45,7 @@ class GMM(nn.Module):
         self._d = 0 if mu is None else mu.shape[1]
         self.shape = [self._d]
         self._precision = 1e-10
+        self.evd = None
 
     def __str__(self):
         return 'GMM_k{}'.format(self.k)
@@ -307,6 +308,9 @@ class GMM(nn.Module):
 
         ret[:, unobserved] = meaned
         return ret.to(device=orig_device)
+
+    def calculate_evd(self):
+        self.evd = tp.linalg.eigh(self.S)
 
     def save(self, path: str):
         """
