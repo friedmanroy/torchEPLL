@@ -50,7 +50,8 @@ def to_patches(im: _tensor, p_sz: int, x0: int, y0: int) -> Tuple[_tensor, Tuple
     :return: a torch tensor containing all of the (whole) patches on the grid and shape for reconstruction
     """
     clr = im.ndim == 3
-    outp = im.clone()[x0:-((im.shape[0]-x0)%p_sz), y0:-((im.shape[0]-y0)%p_sz)]
+    x1, y1 = im.shape[0] - (im.shape[0]-x0)%p_sz, im.shape[1] - (im.shape[1]-y0)%p_sz
+    outp = im.clone()[x0:x1, y0:y1]
     outp = outp.unfold(1, p_sz, p_sz).unfold(0, p_sz, p_sz)
     outp = outp.permute((0, 1, -1, -2, 2)) if clr else outp.permute((0, 1, -1, -2))
     return outp.reshape(-1, *outp.shape[2:]), outp.shape
@@ -88,21 +89,12 @@ def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Callable, 
                     denoised in batches, instead of denoising all of them at the same time
     :return: the cleaned image as a torch tensor with the same shape as the input image
     """
-    color = im.ndim > 2
     batch_sz = 2500
     # break to patches
     ps, shp = to_patches(im, p_sz, x0, y0)
-    den_ps = []
 
     # denoise according to shape
-    for j in range(len(ps)):
-        pbatch = tp.stack(ps[j])
-        if not low_mem:
-            den_ps.append(denoiser(pbatch, var))
-        else:
-            for i in range(pbatch.shape[0]//batch_sz + 1):
-                pbatch[i * batch_sz:(i + 1) * batch_sz] = denoiser(tp.stack(ps[j][i*batch_sz:(i+1)*batch_sz]), var)
-            den_ps.append(pbatch)
+    den_ps = denoiser(ps, var)
 
     # build denoised image back from patches
-    return to_image(im, tp.tensor(den_ps), shp, x0, y0)
+    return to_image(im, den_ps, shp, x0, y0)
