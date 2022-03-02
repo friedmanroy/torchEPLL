@@ -14,7 +14,7 @@ def _choose_grids(p_sz: int, n_grids: int):
     return [int(a) for a in x0], [int(a) for a in y0]
 
 
-def _default_sched(noise_var: float): return lambda i: (2**i)/noise_var
+def _default_sched(noise_var: float): return lambda i: min((2**i)/noise_var, 1e8)
 
 
 def denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: int=10,
@@ -45,7 +45,7 @@ def denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: i
     dev = im.device
 
     if n_grids > p_sz**2: n_grids = p_sz**2
-    grids = tp.ones(n_grids, *im.shape, device=dev)*im[None, ...]
+    grids = tp.ones(n_grids, *im.shape, device=dev)*im.clone()[None, ...]
     x = im.clone()
 
     x0, y0 = _choose_grids(p_sz, n_grids)
@@ -53,7 +53,7 @@ def denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: i
     pbar = tqdm(range(its), disable=not verbose)
     for i in pbar:
         b = beta_sched(i)
-        pbar.set_postfix_str(f'beta: {b:.3f}')
+        pbar.set_postfix_str(f'beta: {b:.1f}')
         if resample_grids: x0, y0 = _choose_grids(p_sz, n_grids)
 
         for g in range(n_grids):

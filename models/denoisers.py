@@ -15,10 +15,10 @@ def _GMM_resp(y: _tensor, gmm: GMM, sig: float):
 
 
 def _GMM_MAP(y: _tensor, gmm: GMM, sig: float, ks: list):
-    means = sig*gmm.mu[ks] + gmm.S[ks]@y
+    means = sig*gmm.mu[ks][..., None] + gmm.S[ks]@y[..., None]
     L, U = gmm.evd
     L += sig
-    return (U@tp.diag_embed(1/L)@U.transpose(-2, -1))[ks]@means
+    return ((U@tp.diag_embed(1/L)@U.transpose(-2, -1))[ks]@means)[..., 0]
 
 
 def GMM_denoiser(gmm: GMM):

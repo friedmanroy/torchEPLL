@@ -104,8 +104,9 @@ class PatchDataset(Dataset):
         image = Image.open(path)
         if not image.mode == 'RGB':
             image = image.convert('RGB')
-        return rescale((np.array(image)/255).astype(np.float32), scale=scale, multichannel=True, preserve_range=True,
-                       anti_aliasing=True)
+        if scale != 1: return rescale((np.array(image)/255).astype(np.float32), scale=scale, preserve_range=True,
+                                      anti_aliasing=True)
+        else: return (np.array(image)/255).astype(np.float32)
 
     def save(self, path):
         d = {'preloaded': self.preloaded,

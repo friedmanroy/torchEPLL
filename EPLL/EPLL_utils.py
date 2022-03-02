@@ -51,9 +51,13 @@ def to_patches(im: _tensor, p_sz: int, x0: int, y0: int) -> Tuple[_tensor, Tuple
     """
     clr = im.ndim == 3
     x1, y1 = im.shape[0] - (im.shape[0]-x0)%p_sz, im.shape[1] - (im.shape[1]-y0)%p_sz
-    outp = im.clone()[x0:x1, y0:y1]
-    outp = outp.unfold(1, p_sz, p_sz).unfold(0, p_sz, p_sz)
-    outp = outp.permute((0, 1, -1, -2, 2)) if clr else outp.permute((0, 1, -1, -2))
+    outp = tp.zeros(x1//p_sz, y1//p_sz, p_sz, p_sz, 3, device=im.device)
+    for i in range(outp.shape[0]):
+        for j in range(outp.shape[1]):
+            outp[i, j] = im[x0+i*p_sz:x0+(i+1)*p_sz, y0+j*p_sz:y0+(j+1)*p_sz]
+    # outp = im.clone()[x0:x1, y0:y1]
+    # outp = outp.unfold(1, p_sz, p_sz).unfold(0, p_sz, p_sz)
+    # outp = outp.permute((0, 1, -1, -2, 2)) if clr else outp.permute((0, 1, -1, -2))
     return outp.reshape(-1, *outp.shape[2:]), outp.shape
 
 
@@ -68,10 +72,18 @@ def to_image(im: _tensor, ps: _tensor, shape: tuple, x0: int, y0: int) -> _tenso
     :return: the reassembled image as a torch tensor with the same shape as im
     """
     clr = im.ndim == 3
-    ret = ps.reshape(shape[0]*shape[2], shape[1]*shape[3], 3) \
-        if clr else ps.reshape(shape[0]*shape[2], shape[1]*shape[3])
     outp = im.clone()
-    outp[x0:x0+ret.shape[0], y0:y0+ret.shape[1]] = ret
+    ps = ps.reshape(shape)
+    p_sz = ps.shape[2]
+    for i in range(ps.shape[0]):
+        for j in range(ps.shape[1]):
+            outp[x0+i*p_sz:x0+(i+1)*p_sz, y0+j*p_sz:y0+(j+1)*p_sz] = ps[i, j]
+    # ret = ps.reshape(shape)
+    # ret = ret.permute((0, 1, -1, -2, 2)) if clr else ret.permute((0, 1, -1, -2))
+    # ret = ps.reshape(shape[0]*shape[2], shape[1]*shape[3], 3) \
+    #     if clr else ps.reshape(shape[0]*shape[2], shape[1]*shape[3])
+    # outp = im.clone()
+    # outp[x0:x0+ret.shape[0], y0:y0+ret.shape[1]] = ret
     return outp
 
 
