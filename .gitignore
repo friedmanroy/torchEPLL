@@ -133,6 +133,6 @@ data/
 trained/
 experiments/
 figures/
-test.py
+*test.py
 *.lyx
 *.pdf

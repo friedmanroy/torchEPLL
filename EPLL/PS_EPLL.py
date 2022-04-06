@@ -10,18 +10,18 @@ tp.set_grad_enabled(False)
 def _default_sched(noise_var: float): return lambda i: min((2**i)/noise_var, 1e8)
 
 
-def denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: int=10,
-            beta_sched: Union[float, Callable]=None, n_grids: int=16, resample_grids: bool=False, verbose: bool=True,
-            low_mem: bool=False, pad: bool=True):
+def sample_denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: int=10,
+                   beta_sched: Union[float, Callable]=None, n_grids: int=16, resample_grids: bool=False, verbose: bool=True,
+                   low_mem: bool=False, pad: bool=True):
     """
-    Denoise an image using the EPLL algorithm
+    Sample a denoising using the EPLL prior
     :param im: the image to denoise as a torch tensor
     :param noise_var: the variance of the noise, as a float
     :param denoiser: the denoiser function to use in order to denoise the patches; this should be a function that
                      receives as an input a torch tensor of shape [B, p_sz, p_sz(, 3)] as well as the noise variance,
                      such that the signature is denoiser(patches, noise_variance)
     :param p_sz: the patch size to use for denoising, as a single int (patches assumed to be square)
-    :param its: number of iterations to run the algorithm for
+    :param its: number of iterations to use
     :param beta_sched: an update schedule for beta that will be used in the denoising process
     :param n_grids: number of grids to use for denoising
     :param resample_grids: whether to sample new grids every iteration or to use the same grids throughout
@@ -54,12 +54,13 @@ def denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: i
         # g = np.random.choice(n_grids, 1)[0]
         # grids[g] = grid_denoise(x.clone(), 1/b, x0[g], y0[g], denoiser, p_sz, low_mem=low_mem)
         x = (grids.sum(dim=0)*b + im.clone()/noise_var)/(b*n_grids + 1/noise_var)
+        x += tp.randn(*x.shape, device=x.device)/np.sqrt(b*n_grids + 1/noise_var)
     pbar.close()
 
     return trim_im(x, p_sz) if pad else x
 
 
-def decorrupt(im: _tensor, noise_var: float, rest_loss: Callable, denoiser: Callable, p_sz: int, its: int=10,
+def sample_decorrupt(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: int=10,
               beta_sched: Union[float, Callable]=100., n_grids: int=16, resample_grids: bool=False, verbose: bool=True,
               low_mem: bool=False, pad: bool=True):
     beta_sched = _callable_beta(beta_sched)
@@ -72,12 +73,5 @@ def decorrupt(im: _tensor, noise_var: float, rest_loss: Callable, denoiser: Call
 
     pbar = tqdm(range(its), disable=not verbose)
     pbar.close()
-    for i in pbar:
-        b = beta_sched(i)
-        pbar.set_postfix_str(f'beta: {b:.1f}')
-        if resample_grids: x0, y0 = _choose_grids(p_sz, n_grids)
-
-        for g in range(n_grids):
-            grids[g] = grid_denoise(x, 1/b, x0[g], y0[g], denoiser, p_sz, low_mem=low_mem)
 
     return trim_im(x, 2*p_sz) if pad else x
