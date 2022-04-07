@@ -1,6 +1,7 @@
 import numpy as np
 import torch as tp
 from typing import Union, Callable, Tuple
+from models import Denoiser
 tp.set_grad_enabled(False)
 
 _tensor = tp.Tensor
@@ -94,7 +95,7 @@ def to_image(im: _tensor, ps: _tensor, shape: tuple, x0: int, y0: int) -> _tenso
     return outp
 
 
-def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Callable, p_sz: int, low_mem: bool=False):
+def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Denoiser, p_sz: int, low_mem: bool=False):
     """
     Denoise a grid corrupted by isotropic noise
     :param im: the image to denoise; a torch tensor with shape [N, M] or [N, M, 3]
@@ -113,7 +114,7 @@ def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Callable, 
     ps, shp = to_patches(im, p_sz, x0, y0)
 
     # denoise according to shape
-    den_ps = denoiser(ps, var)
+    den_ps = denoiser.denoise(ps, var)
 
     # build denoised image back from patches
     return to_image(im, den_ps, shp, x0, y0)

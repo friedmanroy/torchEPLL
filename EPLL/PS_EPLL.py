@@ -3,6 +3,7 @@ import torch as tp
 from typing import Callable, Union
 from tqdm import tqdm
 from .EPLL_utils import (grid_denoise, _tensor, _callable_beta, pad_im, trim_im, _choose_grids)
+from models import Denoiser
 from .solvers import BiCGSTAB
 tp.set_grad_enabled(False)
 
@@ -10,7 +11,7 @@ tp.set_grad_enabled(False)
 def _default_sched(noise_var: float): return lambda i: min((2**i)/noise_var, 1e8)
 
 
-def sample_denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: int=10,
+def sample_denoise(im: _tensor, noise_var: float, denoiser: Denoiser, p_sz: int, its: int=10,
                    beta_sched: Union[float, Callable]=None, n_grids: int=16, resample_grids: bool=False, verbose: bool=True,
                    low_mem: bool=False, pad: bool=True):
     """
@@ -51,8 +52,7 @@ def sample_denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int,
 
         for g in range(n_grids):
             grids[g] = grid_denoise(x, 1/b, x0[g], y0[g], denoiser, p_sz, low_mem=low_mem)
-        # g = np.random.choice(n_grids, 1)[0]
-        # grids[g] = grid_denoise(x.clone(), 1/b, x0[g], y0[g], denoiser, p_sz, low_mem=low_mem)
+
         x = (grids.sum(dim=0)*b + im.clone()/noise_var)/(b*n_grids + 1/noise_var)
         x += tp.randn(*x.shape, device=x.device)/np.sqrt(b*n_grids + 1/noise_var)
     pbar.close()
@@ -60,7 +60,7 @@ def sample_denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int,
     return trim_im(x, p_sz) if pad else x
 
 
-def sample_decorrupt(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: int=10,
+def sample_decorrupt(im: _tensor, noise_var: float, denoiser: Denoiser, p_sz: int, its: int=10,
               beta_sched: Union[float, Callable]=100., n_grids: int=16, resample_grids: bool=False, verbose: bool=True,
               low_mem: bool=False, pad: bool=True):
     beta_sched = _callable_beta(beta_sched)

@@ -3,6 +3,7 @@ import torch as tp
 from typing import Callable, Union
 from tqdm import tqdm
 from .EPLL_utils import (grid_denoise, _tensor, _callable_beta, pad_im, trim_im, _choose_grids)
+from models import Denoiser
 from .solvers import BiCGSTAB
 tp.set_grad_enabled(False)
 
@@ -10,7 +11,7 @@ tp.set_grad_enabled(False)
 def _default_sched(noise_var: float): return lambda i: min((2**i)/noise_var, 1e8)
 
 
-def denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: int=10,
+def denoise(im: _tensor, noise_var: float, denoiser: Denoiser, p_sz: int, its: int=10,
             beta_sched: Union[float, Callable]=None, n_grids: int=16, resample_grids: bool=False, verbose: bool=True,
             low_mem: bool=False, pad: bool=True):
     """
@@ -59,7 +60,7 @@ def denoise(im: _tensor, noise_var: float, denoiser: Callable, p_sz: int, its: i
     return trim_im(x, p_sz) if pad else x
 
 
-def decorrupt(im: _tensor, noise_var: float, rest_loss: Callable, denoiser: Callable, p_sz: int, its: int=10,
+def decorrupt(im: _tensor, noise_var: float, rest_loss: Callable, denoiser: Denoiser, p_sz: int, its: int=10,
               beta_sched: Union[float, Callable]=100., n_grids: int=16, resample_grids: bool=False, verbose: bool=True,
               low_mem: bool=False, pad: bool=True):
     beta_sched = _callable_beta(beta_sched)
