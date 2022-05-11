@@ -133,6 +133,10 @@ data/
 trained/
 experiments/
 figures/
+cluster/
 *test.py
+*experiment.py
+*.out
+*.csh
 *.lyx
 *.pdf

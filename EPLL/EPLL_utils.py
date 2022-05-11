@@ -2,9 +2,17 @@ import numpy as np
 import torch as tp
 from typing import Union, Callable, Tuple
 from models import Denoiser
+from torchvision import transforms
+import warnings
 tp.set_grad_enabled(False)
 
 _tensor = tp.Tensor
+resize = lambda x, shp: transforms.Resize(shp, antialias=False,
+                                          interpolation=transforms.InterpolationMode.BILINEAR)\
+    (x.permute(-1, 0, 1)).permute(1, 2, 0)
+
+
+def _default_sched(noise_var: float): return lambda i: (1 if i==0 else 2**(i+1))/noise_var
 
 
 def _callable_beta(beta: Union[int, float, Callable]):
@@ -16,9 +24,10 @@ def _callable_beta(beta: Union[int, float, Callable]):
 
 def _choose_grids(p_sz: int, n_grids: int):
     # choose random, different, grids
-    chs = np.random.choice(p_sz**2, n_grids, replace=False)
+    chs = np.random.choice(p_sz**2-1, n_grids-2, replace=False)
+    chs = chs + 1
     x0, y0 = chs//p_sz, chs%p_sz
-    return [int(a) for a in x0], [int(a) for a in y0]
+    return [int(a) for a in x0] + [0, p_sz-1], [int(a) for a in y0] + [0, p_sz-1]
 
 
 def pad_im(im: _tensor, p_sz: int, mode: str='reflect', end_values=0.):
@@ -59,7 +68,8 @@ def to_patches(im: _tensor, p_sz: int, x0: int, y0: int) -> Tuple[_tensor, Tuple
     """
     clr = im.ndim == 3
     x1, y1 = im.shape[0] - (im.shape[0]-x0)%p_sz, im.shape[1] - (im.shape[1]-y0)%p_sz
-    outp = tp.zeros(x1//p_sz, y1//p_sz, p_sz, p_sz, 3, device=im.device)
+    if clr: outp = tp.zeros(x1//p_sz, y1//p_sz, p_sz, p_sz, 3, device=im.device)
+    else: outp = tp.zeros(x1//p_sz, y1//p_sz, p_sz, p_sz, device=im.device)
     for i in range(outp.shape[0]):
         for j in range(outp.shape[1]):
             outp[i, j] = im[x0+i*p_sz:x0+(i+1)*p_sz, y0+j*p_sz:y0+(j+1)*p_sz]
@@ -95,7 +105,8 @@ def to_image(im: _tensor, ps: _tensor, shape: tuple, x0: int, y0: int) -> _tenso
     return outp
 
 
-def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Denoiser, p_sz: int, low_mem: bool=False):
+def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Denoiser, p_sz: int,
+                 scale: float=1.):
     """
     Denoise a grid corrupted by isotropic noise
     :param im: the image to denoise; a torch tensor with shape [N, M] or [N, M, 3]
@@ -105,11 +116,16 @@ def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Denoiser, 
     :param denoiser: the denoiser function to use in order to denoise the patches; this should be a Callable that
                      receives as an input a torch tensor of shape [B, p_sz, p_sz(, 3)] as well as the noise variance,
                      such that the signature is denoiser(patches, noise_variance)
-    :param low_mem: a boolean indicating whether low memory should be assumed; if this is set to true, the patches are
-                    denoised in batches, instead of denoising all of them at the same time
+    :param scale: the scale of the image to be denoised; if not 1, the image will be scaled before denoising and
+                  rescaled after, to allow for a multi-scale approach
     :return: the cleaned image as a torch tensor with the same shape as the input image
     """
-    batch_sz = 2500
+    # resize image if needed
+    orig_shp = [im.shape[0], im.shape[1]]
+    if scale != 1:
+        shp = [int(im.shape[0]*scale), int(im.shape[1]*scale)]
+        im = resize(im, shp)
+
     # break to patches
     ps, shp = to_patches(im, p_sz, x0, y0)
 
@@ -117,4 +133,29 @@ def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Denoiser, 
     den_ps = denoiser.denoise(ps, var)
 
     # build denoised image back from patches
-    return to_image(im, den_ps, shp, x0, y0)
+    im = to_image(im, den_ps, shp, x0, y0)
+
+    # if needed, rescale the image back to its original size
+    if scale != 1: im = resize(im, orig_shp)
+
+    return im
+
+
+def optimize_function(loss_func: Callable, params: _tensor, its: int, optimizer: str='adam', lr: float=1e-2,
+                      momentum: float=.9):
+    if optimizer.lower()=='adam': opt = tp.optim.Adam([params], lr=lr)
+    elif optimizer.lower()=='sgd': opt = tp.optim.SGD([params], lr=lr, momentum=momentum)
+    elif optimizer.lower()=='rmsprop': opt = tp.optim.RMSprop([params], lr=lr, momentum=momentum)
+    else:
+        warnings.warn(f'Optimizer "{optimizer}" unkown. The list of known optimizers is: Adam, SGD and RMSprop.'
+                      f'Optimizer defaulting to Adam.')
+        opt = tp.optim.Adam([params], lr=lr)
+
+    params = params.requires_grad_()
+    with tp.enable_grad():
+        for i in range(its):
+            opt.zero_grad()
+            loss = loss_func(params)
+            loss.backward()
+            opt.step()
+    return params.data

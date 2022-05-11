@@ -33,15 +33,17 @@ class GMM(nn.Module):
         self.mu = nn.Parameter(mu if mu is not None else tp.zeros(1), requires_grad=False)
         # covariances
         self.S = nn.Parameter(Sigma if Sigma is not None else tp.zeros(1), requires_grad=False)
+
+        # cholesky decomposition of covariances
         if Sigma is None: self.L = nn.Parameter(tp.zeros(1), requires_grad=False)
         else:
             try: self.L = nn.Parameter(tp.linalg.cholesky(Sigma), requires_grad=False)
             except RuntimeError:
-                self.L = nn.Parameter(tp.linalg.cholesky(Sigma+1e-6*tp.eye(Sigma.shape[-1], device=self.mu.device)[None, ...]),
+                self.L = nn.Parameter(tp.linalg.cholesky(Sigma+1e-6*tp.eye(Sigma.shape[-1],
+                                                                           device=self.mu.device)[None, ...]),
                                       requires_grad=False)
-
-        # cholesky decomposition of covariances
         self.L.data = self.L.data.float()
+
         self._d = 0 if mu is None else mu.shape[1]
         self.shape = [self._d]
         self._precision = 1e-10
@@ -99,7 +101,7 @@ class GMM(nn.Module):
         m = _T(tp.triangular_solve(_T(X[None, :, :]) - self.mu[:, :, None], self.L, upper=False)[0])
         m = _T(tp.sum(m * m, dim=-1))
         det = 2 * _tr(tp.log(tp.clamp(self.L, self._precision, 1e10)))
-        return tp.log(self.pi)[None, :] - .5 * (det[None, :] + m)
+        return tp.log(self.pi)[None, :] - .5 * (det[None, :] + m) - .5*self._d*np.log(2*np.pi)
 
     def _part_log_like(self, X: tp.Tensor, observed):
         """
@@ -260,11 +262,11 @@ class GMM(nn.Module):
         :return: the generated samples as a tensor of shape [N, ...]
         """
         assert self._d > 0, 'Model has not been trained yet'
-        inds = np.random.choice(self.k, N, p=self.pi.numpy()).tolist()
+        inds = np.random.choice(self.k, N, p=self.pi.cpu().numpy()).tolist()
         if k is not None:
             assert 0 <= k <= self.k
             inds = list(k*np.ones(N).astype(int))
-        samples = self.mu[inds] + tp.squeeze(self.L[inds]@tp.randn(N, self._d, 1))
+        samples = self.mu[inds] + tp.squeeze(self.L[inds]@tp.randn(N, self._d, 1, device=self.mu.device))
         return samples.reshape([N] + list(self.shape))
 
     def conditional(self, X: tp.Tensor, observed, map: bool=True, sample: bool=False):
@@ -310,7 +312,12 @@ class GMM(nn.Module):
         return ret.to(device=orig_device)
 
     def calculate_evd(self):
-        self.evd = tp.linalg.eigh(self.S)
+        evd = tp.linalg.eigh(self.S.double())
+        vals = tp.clamp(evd[0], min=(.5/255)**2)
+        vecs = evd[1]
+        self.evd = [vals.float(), vecs.float()]
+        self.S.data = (vecs@tp.diag_embed(vals)@_T(vecs)).float()
+        self.L.data = tp.linalg.cholesky(self.S + self._precision*tp.eye(self._d, device=self.mu.device)[None, :, :])
 
     def save(self, path: str):
         """
