@@ -24,10 +24,14 @@ def _callable_beta(beta: Union[int, float, Callable]):
 
 def _choose_grids(p_sz: int, n_grids: int):
     # choose random, different, grids
-    chs = np.random.choice(p_sz**2-1, n_grids-2, replace=False)
-    chs = chs + 1
+    # chs = np.random.choice(p_sz**2-1, n_grids-2, replace=False)
+    # chs = chs + 1
+    # x0, y0 = chs//p_sz, chs%p_sz
+    # return [int(a) for a in x0] + [0, p_sz-1], [int(a) for a in y0] + [0, p_sz-1]
+    chs = np.random.choice(p_sz**2, n_grids, replace=False)
+    chs = chs
     x0, y0 = chs//p_sz, chs%p_sz
-    return [int(a) for a in x0] + [0, p_sz-1], [int(a) for a in y0] + [0, p_sz-1]
+    return [int(a) for a in x0], [int(a) for a in y0]
 
 
 def pad_im(im: _tensor, p_sz: int, mode: str='reflect', end_values=0.):
@@ -54,7 +58,7 @@ def pad_im(im: _tensor, p_sz: int, mode: str='reflect', end_values=0.):
                                     mode=mode)).float().to(im.device)
 
 
-def trim_im(im: _tensor, p_sz: int): return im[p_sz:-p_sz][:, p_sz:-p_sz]
+def trim_im(im: _tensor, p_sz: int): return im[p_sz//2:-p_sz//2][:, p_sz//2:-p_sz//2]
 
 
 def to_patches(im: _tensor, p_sz: int, x0: int, y0: int) -> Tuple[_tensor, Tuple]:
