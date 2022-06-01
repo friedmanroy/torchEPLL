@@ -9,13 +9,14 @@ from .solvers import BiCGSTAB
 tp.set_grad_enabled(False)
 
 
-def denoise(im: _tensor, noise_var: float, denoiser: Denoiser, p_sz: int, its: int=6,
+def denoise(im: _tensor, noise_var: Union[float, _tensor], denoiser: Denoiser, p_sz: int, its: int=6,
             beta_sched: Union[float, Callable]=None, n_grids: int=16, resample_grids: bool=False, verbose: bool=True,
             pad: bool=True):
     """
     Denoise an image using the EPLL algorithm
     :param im: the image to denoise as a torch tensor
-    :param noise_var: the variance of the noise, as a float
+    :param noise_var: the variance of the noise, as a float or a torch tensor (in which case it should be the same shape
+                      as the image)
     :param denoiser: the denoiser function to use in order to denoise the patches; this should be a function that
                      receives as an input a torch tensor of shape [B, p_sz, p_sz(, 3)] as well as the noise variance,
                      such that the signature is denoiser(patches, noise_variance)
@@ -36,7 +37,9 @@ def denoise(im: _tensor, noise_var: float, denoiser: Denoiser, p_sz: int, its: i
     noise_var = noise_var/n_grids
 
     # if the image is to be padded, do so
-    if pad: im = pad_im(im.clone(), 2*p_sz)
+    if pad:
+        im = pad_im(im.clone(), 2*p_sz)
+        if isinstance(noise_var, _tensor): noise_var = pad_im(noise_var, 2*p_sz)
     dev = im.device
 
     # define the grids that will be used
@@ -63,6 +66,30 @@ def denoise(im: _tensor, noise_var: float, denoiser: Denoiser, p_sz: int, its: i
 def decorrupt(im: _tensor, noise_var: float, H: Callable, denoiser: Denoiser, p_sz: int, its: int=10,
               beta_sched: Union[float, Callable]=100., n_grids: int=16, resample_grids: bool=False, verbose: bool=True,
               pad: bool=True, opt_its: int=500, optimizer: str='adam', lr: float=1e-2, init: _tensor=None):
+    """
+    Decorrupt an image using the EPLL algorithm
+    :param im: the image to denoise as a torch tensor
+    :param noise_var: the variance of the noise, as a float
+    :param H: the corruption process applied to the image - this should be a differentiable function of the input x so
+              that the matrix multiplication H@x is evaluated through the call H(x)
+    :param denoiser: the denoiser function to use in order to denoise the patches; this should be a function that
+                     receives as an input a torch tensor of shape [B, p_sz, p_sz(, 3)] as well as the noise variance,
+                     such that the signature is denoiser(patches, noise_variance)
+    :param p_sz: the patch size to use for denoising, as a single int (patches assumed to be square)
+    :param its: number of iterations to run the algorithm for
+    :param beta_sched: an update schedule for beta that will be used in the decorruption process
+    :param n_grids: number of grids to use for the decorruption process
+    :param resample_grids: whether to sample new grids every iteration or to use the same grids throughout
+    :param verbose: whether a progressbar should be printed or not
+    :param pad: whether to pad the image with reflection padding before denoising
+    :param opt_its: number of inner optimization iterations to use when decorrupting
+    :param optimizer: which optimizer to use; defaults to 'adam'
+    :param lr: the learning rate to use with the optimizer; defaults to 0.01
+    :param init: the initialization the decorruption process should start at; if the decorruption process (H) outputs
+                 the same dimensionality as the original image, this defaults to the corrupted image, otherwise an
+                 initialization must be supplied
+    :return: the decorrupted image, as a torch tensor
+    """
     # make sure that there is a schedule for beta and that it is a callable
     if beta_sched is None: beta_sched = _default_sched(noise_var)
     beta_sched = _callable_beta(beta_sched)
