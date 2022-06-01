@@ -7,9 +7,6 @@ import warnings
 tp.set_grad_enabled(False)
 
 _tensor = tp.Tensor
-resize = lambda x, shp: transforms.Resize(shp, antialias=False,
-                                          interpolation=transforms.InterpolationMode.BILINEAR)\
-    (x.permute(-1, 0, 1)).permute(1, 2, 0)
 
 
 def _default_sched(noise_var: float): return lambda i: (1 if i==0 else 2**(i+1))/noise_var
@@ -109,8 +106,7 @@ def to_image(im: _tensor, ps: _tensor, shape: tuple, x0: int, y0: int) -> _tenso
     return outp
 
 
-def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Denoiser, p_sz: int,
-                 scale: float=1.):
+def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Denoiser, p_sz: int):
     """
     Denoise a grid corrupted by isotropic noise
     :param im: the image to denoise; a torch tensor with shape [N, M] or [N, M, 3]
@@ -120,15 +116,10 @@ def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Denoiser, 
     :param denoiser: the denoiser function to use in order to denoise the patches; this should be a Callable that
                      receives as an input a torch tensor of shape [B, p_sz, p_sz(, 3)] as well as the noise variance,
                      such that the signature is denoiser(patches, noise_variance)
-    :param scale: the scale of the image to be denoised; if not 1, the image will be scaled before denoising and
-                  rescaled after, to allow for a multi-scale approach
     :return: the cleaned image as a torch tensor with the same shape as the input image
     """
     # resize image if needed
     orig_shp = [im.shape[0], im.shape[1]]
-    if scale != 1:
-        shp = [int(im.shape[0]*scale), int(im.shape[1]*scale)]
-        im = resize(im, shp)
 
     # break to patches
     ps, shp = to_patches(im, p_sz, x0, y0)
@@ -138,9 +129,6 @@ def grid_denoise(im: _tensor, var: float, x0: int, y0: int, denoiser: Denoiser, 
 
     # build denoised image back from patches
     im = to_image(im, den_ps, shp, x0, y0)
-
-    # if needed, rescale the image back to its original size
-    if scale != 1: im = resize(im, orig_shp)
 
     return im
 
