@@ -65,7 +65,7 @@ def denoise(im: _tensor, noise_var: Union[float, _tensor], denoiser: Denoiser, p
 
 def decorrupt(im: _tensor, noise_var: float, H: Callable, denoiser: Denoiser, p_sz: int, its: int=6,
               beta_sched: Union[float, Callable]=None, n_grids: int=16, resample_grids: bool=False, verbose: bool=True,
-              pad: bool=True, opt_its: int=500, optimizer: str='adam', lr: float=1e-2, init: _tensor=None):
+              pad: bool=True, opt_its: int=150, optimizer: str='adam', lr: float=1e-2, init: _tensor=None):
     """
     Decorrupt an image using the EPLL algorithm
     :param im: the image to denoise as a torch tensor

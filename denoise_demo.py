@@ -8,7 +8,7 @@ torch.set_grad_enabled(False)
 
 
 # load image
-im_path = 'data/108082.jpg'
+im_path = 'data/108082.jpg'  # use 'data/sheep.jpg' for a slightly bigger image
 im = plt.imread(im_path)/255.
 
 # get device to use
@@ -39,7 +39,7 @@ noisy = torch.from_numpy(noisy).float().to(dev)
 t = time()
 MAP = denoise(noisy, noise_std**2, denoiser, p_sz=8, n_grids=n_grids)
 
-print(f'Denoising took: {time()-t:.2f} seconds')
+print(f'Denoising took {time()-t:.2f} seconds')
 
 # plot denoised image
 plt.figure(dpi=200)
