@@ -36,4 +36,5 @@ Crucially, this implementation uses automatic differentiation in order to decorr
 as $H$ is passed as a differentiable function to the function ```EPLL.decorrupt```.
 
 ## Changing the Patch-Prior
-While a GMM is commonly used for EPLL, essentially any other patch-prior can be used. Specifically, all that is needed is a class that denoises patches
+While a GMM is commonly used for EPLL, essentially any other patch-prior can be used. Specifically, all that is needed is a class with a function 
+```denoise``` which receives batches of patches as well as the noise variance and returns the denoised patches.
