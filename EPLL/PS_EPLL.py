@@ -10,7 +10,7 @@ tp.set_grad_enabled(False)
 
 
 def sample_denoise(im: _tensor, noise_var: Union[float, _tensor], denoiser: Denoiser, p_sz: int, its: int=10,
-                   beta_sched: Union[float, Callable]=None, n_grids: int=16, resample_grids: bool=False,
+                   beta_sched: Union[float, Callable]=None, n_grids: int=16, resample_grids: bool=True,
                    verbose: bool=True, low_mem: bool=False, pad: bool=True, init: _tensor=None):
     """
     Sample a denoising using the EPLL prior
@@ -76,7 +76,7 @@ def sample_denoise(im: _tensor, noise_var: Union[float, _tensor], denoiser: Deno
 
 
 def sample_decorrupt(im: _tensor, noise_var: float, H: Callable, denoiser: Denoiser, p_sz: int, its: int=6,
-                     beta_sched: Union[float, Callable]=None, n_grids: int=16, resample_grids: bool=False,
+                     beta_sched: Union[float, Callable]=None, n_grids: int=16, resample_grids: bool=True,
                      verbose: bool=True, pad: bool=True, opt_its: int=150, optimizer: str='adam', lr: float=1e-2,
                      init: _tensor=None):
     """
